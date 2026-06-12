@@ -59,6 +59,21 @@ class MysqlClient < Formula
     # Disable ABI checking
     inreplace "cmake/abi_check.cmake", "RUN_ABI_CHECK 1", "RUN_ABI_CHECK 0" if OS.linux?
 
+    # LOCAL-ONLY workaround: Apple clang 21 (Xcode 27 beta) libc++ removed
+    # `std::is_trivial(_v)` in C++23 mode; replace with the equivalent conjunction.
+    inreplace %w[
+      libs/mysql/abi_helpers/array_view.h
+      libs/mysql/abi_helpers/detail/array_base.h
+      libs/mysql/gtid/tag_plain.h
+      libs/mysql/gtid/tsid_plain.h
+      libs/mysql/gtid/uuid.h
+      sql/rpl_gtid.h
+    ], /std::is_trivial_v<([^<>]*(?:<[^<>]*>[^<>]*)*)>/,
+      "(std::is_trivially_copyable_v<\\1> && std::is_trivially_default_constructible_v<\\1>)"
+    inreplace "sql/system_variables.h", "std::is_trivial<System_variables>::value",
+      "(std::is_trivially_copyable_v<System_variables> && " \
+      "std::is_trivially_default_constructible_v<System_variables>)"
+
     # -DINSTALL_* are relative to `CMAKE_INSTALL_PREFIX` (`prefix`)
     args = %W[
       -DCOMPILATION_COMMENT=Homebrew
